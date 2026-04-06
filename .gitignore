@@ -1,0 +1,16 @@
+# Virtual environment.venv/
+
+# Vosk model (too large for GitHub — download separately)
+vosk-model-small-en-us-0.15/
+vosk-model-small-en-us-0.15.zip
+
+# Piper binary and models (too large — download separately)
+piper/
+piper_linux_aarch64.tar.gz
+
+# Test audio files
+*.wav
+
+# Python cache
+__pycache__/
+*.pyc

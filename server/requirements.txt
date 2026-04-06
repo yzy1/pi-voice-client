@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+vosk==0.3.45
+openai>=1.47.0
+python-dotenv>=1.0.1
+requests
+chromadb
+sentence-transformers

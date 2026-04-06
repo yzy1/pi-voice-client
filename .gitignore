@@ -1,4 +1,6 @@
-# Virtual environment.venv/
+# Virtual environment
+
+.venv/
 
 # Vosk model (too large for GitHub — download separately)
 vosk-model-small-en-us-0.15/
@@ -14,3 +16,15 @@ piper_linux_aarch64.tar.gz
 # Python cache
 __pycache__/
 *.pyc
+# Server virtual environment and cache
+server/.venv/
+server/__pycache__/
+
+# Server.env (contains local paths — each user creates their own)
+server/.env
+
+# ChromaDB (generated on first run)
+chroma_db/
+
+# Models (too large — download separately)
+models/

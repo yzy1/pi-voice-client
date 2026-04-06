@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>语音识别 + Agent → TTS</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; padding: 24px; }
+    h1 { margin-top: 0; }
+    button { padding: 8px 14px; margin-right: 8px; }
+    input[type="text"] { padding: 8px; width: 100%; box-sizing: border-box; }
+    select { padding: 6px 10px; min-width: 420px; }
+    pre { background:#f6f8fa; padding:12px; border-radius:6px; white-space:pre-wrap; }
+    .row { margin: 12px 0; display:flex; align-items: center; gap:8px; flex-wrap: wrap; }
+    .hint { color:#666; font-size: 12px; }
+    .col { display:flex; flex-direction:column; gap:6px; width:100%; }
+    .section { margin-top: 28px; border-top: 1px solid #eee; padding-top: 20px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .chat-input { flex: 1; min-width: 200px; }
+    .chat-tts-label { white-space: nowrap; font-size: 14px; }
+    .chat-log { margin-top: 12px; max-height: 320px; overflow-y: auto; background: #f6f8fa; border-radius: 8px; padding: 12px; }
+    .chat-msg { margin-bottom: 12px; }
+    .chat-msg.user { color: #055; }
+    .chat-msg.user strong { color: #033; }
+    .chat-msg.assistant { color: #333; white-space: pre-wrap; word-break: break-word; }
+    .chat-msg.assistant strong { color: #555; }
+    .chat-msg .time { font-size: 11px; color: #999; margin-right: 6px; }
+  </style>
+</head>
+<body>
+
+  <h1>语音识别（Vosk，本地）</h1>
+
+  <div class="row">
+    <button id="btnRefresh">麦克风列表</button>
+    <select id="micSelect"></select>
+  </div>
+
+  <div class="row">
+    <button id="startBtn">开始录音并识别</button>
+    <button id="stopBtn" disabled>停止</button>
+
+    <!-- 是否自动把识别结果发给Agent, 用Piper播放 -->
+    <label style="margin-left:8px">
+      <input type="checkbox" id="autoAgent" />
+      识别出一句话后自动问Agent并播放
+    </label>
+  </div>
+
+  <h3>识别结果：</h3>
+  <pre id="transcript" class="mono"></pre>
+
+  <div class="section">
+    <h3>文字提问</h3>
+    <div class="row">
+      <input type="text" id="chatInput" placeholder="输入问题后回车或点击发送" class="chat-input" />
+      <button type="button" id="chatSend">发送</button>
+      <label class="chat-tts-label">
+        <input type="checkbox" id="chatPlayTTS" checked /> 播放回答
+      </label>
+    </div>
+    <div id="chatLog" class="chat-log"></div>
+  </div>
+
+  <!-- 播放用的隐藏audio -->
+  <audio id="ttsAudio" style="display:none"></audio>
+
+  <script src="/client/tts_stream.js"></script>
+  <script src="/client/asr_vosk.js"></script>
+  <script src="/client/chat.js"></script>
+
+</body>
+</html>

@@ -3,6 +3,7 @@
 Raspberry Pi Voice Client
 Connects to a remote FastAPI server for RAG + Ollama chat.
 Uses Vosk for local STT and Piper for local TTS.
+Supports physical buttons for pre-recorded questions.
 """
 
 import os
@@ -13,17 +14,19 @@ import subprocess
 import tempfile
 import queue
 import sys
+import threading
 
 import numpy as np
 import sounddevice as sd
 import requests
 from vosk import Model, KaldiRecognizer
+from gpiozero import Button as GPIOButton
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-SERVER_URL = "http://192.168.68.104:8080"
+SERVER_URL = "http://192.168.68.103:8080"
 VOSK_MODEL_PATH = os.path.expanduser("~/voice-client/vosk-model-small-en-us-0.15")
 PIPER_BINARY = os.path.expanduser("~/voice-client/piper/piper")
 PIPER_VOICE = os.path.expanduser("~/voice-client/piper/en_US-lessac-medium.onnx")
@@ -38,10 +41,34 @@ SPEAKER_DEVICE = "hw:2,0"
 VOSK_SAMPLE_RATE = 16000
 
 # =============================================================================
+# BUTTON CONFIGURATION
+# =============================================================================
+# Each button maps a GPIO pin (BCM number) to a pre-recorded question.
+# To add more buttons, just add more entries to this dictionary.
+#
+# Wiring for each button:
+#   One wire → GPIO pin
+#   Other wire → any GND pin
+#
+# Current buttons:
+#   Button 1: GPIO 17 (Physical Pin 11) + GND (Physical Pin 6)
+#   Button 2: GPIO ?? (add when ready)
+#   Button 3: GPIO ?? (add when ready)
+
+BUTTON_QUESTIONS = {
+    17: "Tell me something about Guanyin",
+    # 27: "Tell me something about the conservation effort on the Guanyin",
+    # 22: "Tell me something about the history of the Guanyin statue",
+}
+
+BUTTON_BOUNCE_TIME = 0.3  # seconds, to prevent double-triggers
+
+# =============================================================================
 # AUDIO QUEUE FOR RECORDING
 # =============================================================================
 
 audio_queue = queue.Queue()
+button_queue = queue.Queue()
 
 
 def audio_callback(indata, frames, time_info, status):
@@ -182,6 +209,30 @@ def find_usb_mic_index():
 
 
 # =============================================================================
+# BUTTON HANDLER
+# =============================================================================
+
+def make_button_handler(gpio_pin):
+    """Create a callback function for a specific button."""
+    def handler():
+        question = BUTTON_QUESTIONS[gpio_pin]
+        print(f"\n[Button GPIO {gpio_pin}] Pressed! Question: {question}")
+        button_queue.put(question)
+    return handler
+
+
+def setup_buttons():
+    """Initialize all configured buttons."""
+    buttons = []
+    for gpio_pin, question in BUTTON_QUESTIONS.items():
+        btn = GPIOButton(gpio_pin, pull_up=True, bounce_time=BUTTON_BOUNCE_TIME)
+        btn.when_pressed = make_button_handler(gpio_pin)
+        buttons.append(btn)
+        print(f"[Button] GPIO {gpio_pin}: \"{question}\"")
+    return buttons
+
+
+# =============================================================================
 # MAIN LOOP
 # =============================================================================
 
@@ -203,11 +254,15 @@ def main():
     # Find mic device
     mic_index = find_usb_mic_index()
 
+    # Setup buttons
+    print()
+    buttons = setup_buttons()
+
     print()
     print("Commands:")
-    print("  Just speak into the mic — it will transcribe and ask the server")
-    print("  Type a message and press Enter — sends text directly to the server")
-    print("  Type 'quit' to exit")
+    print("  Speak into the mic — it will transcribe and ask the server")
+    print("  Press a button — sends the pre-recorded question to the server")
+    print("  Ctrl+C to exit")
     print()
 
     # Start mic stream
@@ -220,21 +275,34 @@ def main():
         callback=audio_callback
     )
 
-    listening = True
     stream.start()
-    print("[Mic] Listening... (speak or type)")
+    print("[Mic] Listening... (speak or press a button)")
 
     try:
         while True:
-            # Check for typed input (non-blocking)
-            # We process audio in small chunks and check for keyboard input
+            # Check for button presses first
+            if not button_queue.empty():
+                question = button_queue.get()
+                print(f"\n[Button Question]: {question}")
+                # Pause mic while processing
+                stream.stop()
+                # Ask server
+                reply = ask_server(question)
+                if reply:
+                    print(f"[Answer]: {reply}")
+                    speak(reply)
+                # Resume mic
+                stream.start()
+                print("\n[Mic] Listening... (speak or press a button)")
+                continue
+
+            # Process audio chunks from the mic
             try:
-                # Process audio chunks from the mic
                 while not audio_queue.empty():
                     chunk = audio_queue.get()
                     # Convert stereo 48kHz to mono 16kHz for Vosk
                     mono_data = stereo48k_to_mono16k(chunk)
-                    
+
                     if recognizer.AcceptWaveform(mono_data):
                         result = json.loads(recognizer.Result())
                         text = result.get("text", "").strip()
@@ -249,7 +317,7 @@ def main():
                                 speak(reply)
                             # Resume mic
                             stream.start()
-                            print("\n[Mic] Listening... (speak or type)")
+                            print("\n[Mic] Listening... (speak or press a button)")
                     else:
                         partial = json.loads(recognizer.PartialResult())
                         partial_text = partial.get("partial", "").strip()

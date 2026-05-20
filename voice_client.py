@@ -26,7 +26,7 @@ from gpiozero import Button as GPIOButton
 # CONFIGURATION
 # =============================================================================
 
-SERVER_URL = "http://192.168.68.103:8080"
+SERVER_URL = "http://192.168.68.119:8080"
 VOSK_MODEL_PATH = os.path.expanduser("~/voice-client/vosk-model-small-en-us-0.15")
 PIPER_BINARY = os.path.expanduser("~/voice-client/piper/piper")
 PIPER_VOICE = os.path.expanduser("~/voice-client/piper/en_US-lessac-medium.onnx")
@@ -56,9 +56,9 @@ VOSK_SAMPLE_RATE = 16000
 #   Button 3: GPIO ?? (add when ready)
 
 BUTTON_QUESTIONS = {
-    17: "Tell me something about Guanyin",
-    # 27: "Tell me something about the conservation effort on the Guanyin",
-    # 22: "Tell me something about the history of the Guanyin statue",
+    17: "Tell me something about the trunk space of this vehicle",
+    27: "What is the fuel economy of this vehicle?",
+    22: "What are the safety features of this vehicle?",
 }
 
 BUTTON_BOUNCE_TIME = 0.3  # seconds, to prevent double-triggers
@@ -169,7 +169,7 @@ def ask_server(text):
     try:
         response = requests.post(
             f"{SERVER_URL}/agent/reply",
-            json={"text": text, "system": "Keep your answers concise and under 3 sentences. You are a voice assistant — your responses will be spoken aloud."},
+            json={"text": text, "system": "You are a car sales assistant helping customers understand the features and functions of their vehicle. Keep your answers concise and under 3 sentences. Your responses will be spoken aloud."},
             timeout=60
         )
         response.raise_for_status()

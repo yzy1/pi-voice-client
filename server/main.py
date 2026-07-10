@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import json
-import time
-import struct
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from stt_vosk import create_recognizer
 from agent_factory import create_agent
 
 # Initialize the agent (reads AGENT_KIND from environment, defaults to "openai")
@@ -61,91 +58,6 @@ async def ws_echo(ws: WebSocket):
             await ws.send_text(f"echo: {msg}")
     except WebSocketDisconnect:
         print("[WS] echo disconnected")
-
-
-# ASR WebSocket (Vosk, local recognition on the Pi)
-@app.websocket("/ws/asr")
-async def ws_asr(ws: WebSocket):
-    await ws.accept()
-    print("[WS] asr connected")
-
-    recognizer = None
-    last_partial: Optional[str] = None
-
-    # Throughput stats
-    bytes_in_window = 0
-    t0 = time.time()
-
-    try:
-        while True:
-            msg = await ws.receive()
-
-            if msg.get("type") == "websocket.disconnect":
-                print(f"[WS] asr disconnected code={msg.get('code')}")
-                break
-
-            if msg.get("text") is not None:
-                # Control message: start / stop
-                try:
-                    data = json.loads(msg["text"])
-                except json.JSONDecodeError:
-                    print("[ASR] invalid text:", msg["text"])
-                    continue
-
-                t = data.get("type")
-                if t == "start":
-                    sr = int(data.get("sampleRate") or 16000)
-                    recognizer = create_recognizer(sr)
-                    last_partial = None
-                    await ws.send_text(json.dumps({"type": "ack", "sampleRate": sr}))
-                    print(f"[ASR] start, sampleRate={sr}")
-
-                elif t == "stop":
-                    if recognizer is not None:
-                        final_json = recognizer.FinalResult()
-                        try:
-                            final_data = json.loads(final_json or "{}")
-                            text = (final_data.get("text") or "").strip()
-                        except Exception:
-                            text = ""
-                        if text:
-                            await ws.send_text(json.dumps({"type": "final", "text": text}))
-                            print("[ASR] final:", text)
-                    recognizer = None
-                    last_partial = None
-                continue
-
-            # Audio frame
-            if msg.get("bytes") is not None and recognizer is not None:
-                chunk = msg["bytes"]
-                bytes_in_window += len(chunk)
-
-                ok = recognizer.AcceptWaveform(chunk)
-                if ok:
-                    res = recognizer.Result()
-                    try:
-                        obj = json.loads(res or "{}")
-                        text = (obj.get("text") or "").strip()
-                    except Exception:
-                        text = ""
-                    if text:
-                        await ws.send_text(json.dumps({"type": "final", "text": text}))
-                        print("[ASR] final:", text)
-                    last_partial = None
-                else:
-                    part = recognizer.PartialResult()
-                    try:
-                        obj = json.loads(part or "{}")
-                        ptxt = (obj.get("partial") or "").strip()
-                    except Exception:
-                        ptxt = ""
-                    if ptxt and ptxt != last_partial:
-                        last_partial = ptxt
-                        await ws.send_text(json.dumps({"type": "partial", "text": ptxt}))
-    except WebSocketDisconnect:
-        print("[WS] asr disconnected (exception)")
-    finally:
-        print("[WS] asr closed")
 
 
 # Agent text reply (pure text, no TTS)

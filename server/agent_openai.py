@@ -9,48 +9,46 @@ from openai import OpenAI
 
 from agent_base import AgentInterface
 
-# 加载 .env
+# Load .env
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-# 读取环境变量
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or ""
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL") or None      # None = 官方
-OPENAI_MODEL = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
+# Read environment variables for DeepSeek
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") or ""
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com"
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL") or "deepseek-chat"
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set (check server/.env).")
+if not DEEPSEEK_API_KEY:
+    raise RuntimeError("DEEPSEEK_API_KEY is not set (check server/.env or Railway variables).")
 
-client_kwargs: Dict[str, str] = {"api_key": OPENAI_API_KEY}
-if OPENAI_BASE_URL:
-    client_kwargs["base_url"] = OPENAI_BASE_URL
+# Initialize DeepSeek client (OpenAI-compatible)
+client_kwargs: Dict[str, str] = {
+    "api_key": DEEPSEEK_API_KEY,
+    "base_url": DEEPSEEK_BASE_URL
+}
 
 _client = OpenAI(**client_kwargs)
 
 def chat_once(user_text: str, system_prompt: Optional[str] = None) -> str:
-    # 发一轮对话，返回回复文本。
+    """Send a single chat message and return the response text."""
     messages: List[Dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_text})
 
     resp = _client.chat.completions.create(
-        model=OPENAI_MODEL,
+        model=DEEPSEEK_MODEL,
         messages=messages,
         temperature=0.6,
     )
-    # 兼容常见字段
     choice = resp.choices[0]
     reply = (choice.message.content or "").strip()
     return reply
 
 class OpenAIAdapter(AgentInterface):
-    # 现有chat_once()包装成统一接口
+    """Adapter for DeepSeek API (OpenAI-compatible)."""
 
     def __init__(self):
-        # 需要的话这里读取 OPENAI_MODEL / OPENAI_API_KEY 等
-        self.model = os.getenv("OPENAI_MODEL")
+        self.model = os.getenv("DEEPSEEK_MODEL") or "deepseek-chat"
 
     def reply(self, text: str, system_prompt: Optional[str] = None) -> str:
-        # 直接复用chat_once
-        # from agent_openai import chat_once  # 避免循环导入
         return chat_once(text, system_prompt=system_prompt)

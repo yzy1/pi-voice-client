@@ -27,15 +27,18 @@ app.add_middleware(
 )
 
 # Static hosting - fix for Railway deployment
-BASE_DIR = Path(__file__).resolve().parent.parent
-# Try to find the client directory (works locally and on Railway)
-CLIENT_DIR = BASE_DIR / "client"
+# Railway root is set to "server/", so we need to go up one level to find "client/"
+BASE_DIR = Path(__file__).resolve().parent  # This is /app/server
+CLIENT_DIR = BASE_DIR.parent / "client"     # This is /app/client
+
 if not CLIENT_DIR.exists():
-    # If we're in the server subfolder, try going up one more level
-    CLIENT_DIR = Path(__file__).resolve().parent.parent.parent / "client"
+    # Fallback for local development
+    CLIENT_DIR = Path(__file__).resolve().parent.parent / "client"
 
 if not CLIENT_DIR.exists():
     raise RuntimeError(f"client directory not found: {CLIENT_DIR}")
+
+print(f"Client directory found at: {CLIENT_DIR}")  # For debugging
 
 app.mount("/client", StaticFiles(directory=str(CLIENT_DIR), html=False), name="client")
 

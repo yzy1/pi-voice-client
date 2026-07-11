@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static hosting - fix for Railway deployment
+# Static hosting - optional, only if client folder exists
 # Railway root is set to "server/", so we need to go up one level to find "client/"
 BASE_DIR = Path(__file__).resolve().parent  # This is /app/server
 CLIENT_DIR = BASE_DIR.parent / "client"     # This is /app/client
@@ -35,17 +35,19 @@ if not CLIENT_DIR.exists():
     # Fallback for local development
     CLIENT_DIR = Path(__file__).resolve().parent.parent / "client"
 
-if not CLIENT_DIR.exists():
-    raise RuntimeError(f"client directory not found: {CLIENT_DIR}")
+if CLIENT_DIR and CLIENT_DIR.exists():
+    print(f"Client directory found at: {CLIENT_DIR}")
+    app.mount("/client", StaticFiles(directory=str(CLIENT_DIR), html=False), name="client")
 
-print(f"Client directory found at: {CLIENT_DIR}")  # For debugging
-
-app.mount("/client", StaticFiles(directory=str(CLIENT_DIR), html=False), name="client")
-
-
-@app.get("/", response_class=FileResponse)
-async def index():
-    return FileResponse(CLIENT_DIR / "index.html")
+    @app.get("/", response_class=FileResponse)
+    async def index():
+        return FileResponse(CLIENT_DIR / "index.html")
+else:
+    print(f"Warning: client directory not found at: {CLIENT_DIR}, web UI disabled")
+    
+    @app.get("/", response_class=PlainTextResponse)
+    async def index():
+        return "API server is running. Use /health to check status or /agent/reply for queries."
 
 
 # Health check

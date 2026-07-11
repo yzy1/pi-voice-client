@@ -22,7 +22,7 @@ class RagOllamaAdapter(AgentInterface):
         self.ollama_url = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
         self.doc_dir = Path(os.getenv("RAG_DOC_DIR", str(base_dir / "rag_docs")))
         self.top_k = int(os.getenv("RAG_TOP_K", "5"))
-        self.max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.70"))
+        self.max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.50"))
         self.collection_name = os.getenv("RAG_COLLECTION", "rag_kb")
         self.embed_model = os.getenv(
             "RAG_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
@@ -106,17 +106,15 @@ class RagOllamaAdapter(AgentInterface):
 
     def build_prompt(self, query: str, contexts: list[tuple[str, dict, float]]) -> str:
         if not contexts:
-            return f"""You are a helpful assistant.
+            return f"""You are a car sales assistant.
 
-# Role and setting
-You are a museum docent. Your job is to answer visitors' questions based on the museum's knowledge base. Use the same language as the visitor's input.
+# Strict Rule
+You ONLY answer questions based on the documents provided to you. You have searched the knowledge base and found NO relevant information for this question.
 
-# Task
-- No relevant information was found in the knowledge base for this question. Say so clearly and politely.
-- You may suggest the visitor go to the information desk or check the museum catalog.
-- Do not present guesses as if they came from the museum's records.
+# Response
+Politely tell the user that this information is not available in your knowledge base. Do NOT use any outside knowledge. Do NOT guess or infer.
 
-# Visitor question
+# User question
 {query}
 """
 
@@ -126,29 +124,19 @@ You are a museum docent. Your job is to answer visitors' questions based on the 
                 for i, (chunk, meta, dist) in enumerate(contexts)
             ]
         )
-        return f"""You are a helpful assistant.
+        return f"""You are a car sales assistant.
 
-# Role and setting
-You are a museum docent. Use the museum knowledge base excerpts below when they are relevant. Use the same language as the visitor's input.
+# Strict Rules
+- You ONLY answer from the Context below. Nothing else.
+- If the Context does not contain enough information to answer, say clearly: "I don't have that information in my knowledge base."
+- Do NOT use any outside knowledge, general knowledge, or training data.
+- Do NOT guess, infer, or make up information.
+- If the question is unrelated to the documents, say: "I can only answer questions about the vehicles in my knowledge base."
 
-# Relevance and how to answer
-1. **Judge relevance**: Is the visitor's question related to the topic of the Context below? If the question is clearly about something else (e.g. unrelated artist, unrelated museum), say that it was not found in the museum's records and do not invent an answer.
-
-2. **When the Context directly answers the question**: Answer from the Context and cite excerpt numbers [1], [2] where appropriate.
-
-3. **When you cannot give a valid answer from [2]** (e.g. the question asks "why" or "the reason" and the Context only says *that* something is so, not *why*): then follow this step instead:
-   - First state what *is* in the knowledge base (with [number] if useful).
-   - Then say clearly: "This is not stated in our museum's knowledge base" or "The records don't give the reason."
-   - After that, you may add: "But one possible explanation is ..." or "I think a likely reason could be ..." and give a short, reasonable inference. Always make it obvious that this part is your own suggestion, not from the records.
-
-# Guidelines
-- Never present your own inference or guess as if it came from the knowledge base.
-- Keep answers concise; cite [1], [2] for any claim that comes from the Context.
-
-# Visitor question
+# User question
 {query}
 
-# Museum knowledge base excerpts (ordered by relevance)
+# Knowledge base excerpts (ordered by relevance)
 {context_block}
 """
 

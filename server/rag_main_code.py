@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 import chromadb
-import requests
 from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from agent_base import AgentInterface
 
@@ -18,16 +18,20 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 class RagOllamaAdapter(AgentInterface):
     def __init__(self) -> None:
         base_dir = Path(__file__).resolve().parent.parent
-        self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-        self.ollama_url = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
-        self.doc_dir = Path(os.getenv("RAG_DOC_DIR", str(base_dir / "rag_docs")))
         self.top_k = int(os.getenv("RAG_TOP_K", "5"))
         self.max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.50"))
         self.collection_name = os.getenv("RAG_COLLECTION", "rag_kb")
         self.embed_model = os.getenv(
             "RAG_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
         )
+        self.doc_dir = Path(os.getenv("RAG_DOC_DIR", str(base_dir / "rag_docs")))
         db_path = Path(os.getenv("RAG_DB_PATH", str(base_dir / "chroma_db")))
+
+        # Initialize DeepSeek client
+        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+        self.deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        if not self.deepseek_api_key:
+            raise RuntimeError("DEEPSEEK_API_KEY is not set (check server/.env or Railway variables).")
 
         print(f"[RAG] init chroma db: {db_path}")
         client = chromadb.PersistentClient(path=str(db_path))
@@ -53,7 +57,7 @@ class RagOllamaAdapter(AgentInterface):
             self.doc_dir.mkdir(parents=True, exist_ok=True)
             sample_file = self.doc_dir / "sample.md"
             sample_file.write_text(
-                "# Hello KB\nThis file is for RAG demo. Put your museum notes here.",
+                "# Hello KB\nThis file is for RAG demo. Put your car manuals here.",
                 encoding="utf-8",
             )
             files = [sample_file]
@@ -140,30 +144,25 @@ Politely tell the user that this information is not available in your knowledge 
 {context_block}
 """
 
-    def call_ollama(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        final_prompt = prompt
-        if system_prompt:
-            final_prompt = f"{system_prompt}\n\n{prompt}"
-
-        resp = requests.post(
-            self.ollama_url,
-            json={
-                "model": self.ollama_model,
-                "prompt": final_prompt,
-                "stream": False,
-                "options": {
-                    "template": "{{ .Prompt }}",
-                    "num_ctx": 4096,
-                    "temperature": 0.2,
-                },
-            },
-            timeout=600,
+    def call_llm(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        """Call DeepSeek API with the prompt."""
+        client = OpenAI(
+            api_key=self.deepseek_api_key,
+            base_url="https://api.deepseek.com"
         )
-        resp.raise_for_status()
-        data = resp.json()
-        return (data.get("response") or "").strip()
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response = client.chat.completions.create(
+            model=self.deepseek_model,
+            messages=messages,
+            temperature=0.2,
+        )
+        return response.choices[0].message.content.strip()
 
     def reply(self, text: str, system_prompt: Optional[str] = None) -> str:
         contexts = self.retrieve(text)
         prompt = self.build_prompt(text, contexts)
-        return self.call_ollama(prompt, system_prompt=system_prompt)
+        return self.call_llm(prompt, system_prompt=system_prompt)

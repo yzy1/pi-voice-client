@@ -57,7 +57,7 @@ class RagOllamaAdapter(AgentInterface):
             self.doc_dir.mkdir(parents=True, exist_ok=True)
             sample_file = self.doc_dir / "sample.md"
             sample_file.write_text(
-                "# Hello KB\nThis file is for RAG demo. Put your car manuals here.",
+                "# Hello KB\nThis file is for RAG demo. Put your exhibit knowledge base here.",
                 encoding="utf-8",
             )
             files = [sample_file]
@@ -110,15 +110,15 @@ class RagOllamaAdapter(AgentInterface):
 
     def build_prompt(self, query: str, contexts: list[tuple[str, dict, float]]) -> str:
         if not contexts:
-            return f"""You are a car sales assistant.
+            return f"""你是珠江·恺撒堡《清明上河图》概念钢琴的AI导览助手。
 
-# Strict Rule
-You ONLY answer questions based on the documents provided to you. You have searched the knowledge base and found NO relevant information for this question.
+# 严格规则
+你只能根据知识库中提供的内容回答问题。经过检索，知识库中没有找到与这个问题相关的信息。
 
-# Response
-Politely tell the user that this information is not available in your knowledge base. Do NOT use any outside knowledge. Do NOT guess or infer.
+# 回答要求
+请礼貌地告诉用户，你的知识库中暂时没有这个信息。不要使用任何外部知识，不要猜测或推断。
 
-# User question
+# 用户问题
 {query}
 """
 
@@ -128,19 +128,19 @@ Politely tell the user that this information is not available in your knowledge 
                 for i, (chunk, meta, dist) in enumerate(contexts)
             ]
         )
-        return f"""You are a car sales assistant.
+        return f"""你是珠江·恺撒堡《清明上河图》概念钢琴的AI导览助手。
 
-# Strict Rules
-- You ONLY answer from the Context below. Nothing else.
-- If the Context does not contain enough information to answer, say clearly: "I don't have that information in my knowledge base."
-- Do NOT use any outside knowledge, general knowledge, or training data.
-- Do NOT guess, infer, or make up information.
-- If the question is unrelated to the documents, say: "I can only answer questions about the vehicles in my knowledge base."
+# 严格规则
+- 你只能根据下面的【知识库摘录】回答问题，不能使用其他任何信息。
+- 如果【知识库摘录】中的内容不足以回答问题，请明确说："抱歉，我的知识库中暂时没有这个信息。"
+- 不要使用任何外部知识、常识或训练数据。
+- 不要猜测、推断或编造信息。
+- 如果问题和这台钢琴无关，请说："我只能回答关于这台钢琴的问题。"
 
-# User question
+# 用户问题
 {query}
 
-# Knowledge base excerpts (ordered by relevance)
+# 知识库摘录（按相关度排序）
 {context_block}
 """
 
